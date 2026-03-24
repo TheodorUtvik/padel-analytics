@@ -53,12 +53,24 @@ class PadelAPIClient:
                 raise PermissionError(f"{hint} URL={url}") from e
             raise
         except requests.exceptions.ConnectionError as e:
-            message = (
+            raise ConnectionError(
                 f"Connection error calling {url}. "
-                "If you see a NameResolutionError/Failed to resolve host, your environment can't resolve "
-                "the Padel API hostname (DNS/network/VPN issue)."
-            )
-            raise ConnectionError(message) from e
+                "If you see a NameResolutionError/Failed to resolve host, your environment "
+                "can't resolve the Padel API hostname (DNS/network/VPN issue)."
+            ) from e
+        except requests.exceptions.Timeout as e:
+            raise TimeoutError(f"Timed out calling {url} after {self.timeout_seconds}s") from e
+
+    def _post(self, endpoint: str, body: dict = None) -> dict:
+        url = f"{self.base_url}{endpoint}"
+        try:
+            response = self.session.post(url, json=body, timeout=self.timeout_seconds)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.HTTPError:
+            raise
+        except requests.exceptions.ConnectionError as e:
+            raise ConnectionError(f"Connection error calling {url}.") from e
         except requests.exceptions.Timeout as e:
             raise TimeoutError(f"Timed out calling {url} after {self.timeout_seconds}s") from e
 
@@ -80,15 +92,42 @@ class PadelAPIClient:
             json.dump(data, f, indent=2)
         return data
 
-    # --- Endpoints ---
+    # --- Seasons ---
 
     def get_seasons(self) -> dict:
+        """List all seasons."""
         return self._get_cached("seasons.json", "/api/seasons")
 
-    def get_players(self) -> dict:
-        return self._get_cached("players.json", "/api/players")
+    def get_season_tournaments(self, season_id: int) -> dict:
+        """List all tournaments in a season."""
+        return self._get_cached(
+            f"seasons/{season_id}/tournaments.json",
+            f"/api/seasons/{season_id}/tournaments",
+        )
 
-    def get_player_stats(self, player_id: int, after_date: str = None, before_date: str = None, round: str = None) -> dict:
+    # --- Players ---
+
+    def get_players(self, name: str = None, nationality: str = None,
+                    category: str = None, side: str = None) -> dict:
+        """List players. Supports filtering by name, nationality, category (men/women), side (drive/backhand)."""
+        params = {}
+        if name:
+            params["name"] = name
+        if nationality:
+            params["nationality"] = nationality
+        if category:
+            params["category"] = category
+        if side:
+            params["side"] = side
+        return self._get("/api/players", params)
+
+    def get_player(self, player_id: int) -> dict:
+        """Show a single player's profile."""
+        return self._get_cached(f"players/{player_id}.json", f"/api/players/{player_id}")
+
+    def get_player_matches(self, player_id: int, after_date: str = None,
+                           before_date: str = None, round: int = None) -> dict:
+        """List matches for a specific player."""
         params = {}
         if after_date:
             params["after_date"] = after_date
@@ -96,21 +135,87 @@ class PadelAPIClient:
             params["before_date"] = before_date
         if round:
             params["round"] = round
-        cache_key = f"after={after_date}_before={before_date}_round={round}"
-        return self._get_cached(
-            f"players/{player_id}/stats_{cache_key}.json",
-            f"/api/players/{player_id}/stats",
-            params,
-        )
+        return self._get(f"/api/players/{player_id}/matches", params)
 
-    def get_matches(self, params: dict = None) -> dict:
+    # --- Matches ---
+
+    def get_matches(self, after_date: str = None, before_date: str = None,
+                    round: int = None, category: str = None) -> dict:
+        """List matches. Supports filtering by date range, round, and category (men/women).
+        Round values: 1=Final, 2=Semi, 4=QF, 8=R16, 16=R32, 32=R64.
+        """
+        params = {}
+        if after_date:
+            params["after_date"] = after_date
+        if before_date:
+            params["before_date"] = before_date
+        if round:
+            params["round"] = round
+        if category:
+            params["category"] = category
         return self._get("/api/matches", params)
 
-    def get_match_stats(self, match_id: int) -> dict:
-        return self._get_cached(f"matches/{match_id}/stats.json", f"/api/matches/{match_id}/stats")
+    def get_match(self, match_id: int) -> dict:
+        """Show a single match."""
+        return self._get_cached(f"matches/{match_id}.json", f"/api/matches/{match_id}")
 
-    def get_pair_stats(self, p1_id: int, p2_id: int) -> dict:
-        return self._get_cached(
-            f"pairs/{p1_id}-{p2_id}/stats.json",
-            f"/api/pairs/{p1_id}-{p2_id}/stats",
-        )
+    def get_head_to_head(self, team_1: list[int], team_2: list[int] = None) -> dict:
+        """Search head-to-head matches between players/pairs.
+        team_1: list of 1-2 player IDs.
+        team_2: list of 1-2 player IDs (optional — omit to see all matches for team_1).
+        """
+        body = {"team_1": team_1}
+        if team_2:
+            body["team_2"] = team_2
+        return self._post("/api/matches/head-to-head", body)
+
+    # --- Tournaments ---
+
+    def get_tournaments(self, name: str = None, country: str = None, level: str = None,
+                        after_date: str = None, before_date: str = None) -> dict:
+        """List tournaments. Level options: major, p1, p2, fip_gold, fip_platinum, fip_other,
+        wpt_1000, wpt_500, wpt_final, wpt_master, finals.
+        """
+        params = {}
+        if name:
+            params["name"] = name
+        if country:
+            params["country"] = country
+        if level:
+            params["level"] = level
+        if after_date:
+            params["after_date"] = after_date
+        if before_date:
+            params["before_date"] = before_date
+        return self._get("/api/tournaments", params)
+
+    def get_tournament(self, tournament_id: int) -> dict:
+        """Show a single tournament."""
+        return self._get_cached(f"tournaments/{tournament_id}.json", f"/api/tournaments/{tournament_id}")
+
+    def get_tournament_matches(self, tournament_id: int, round: int = None, category: str = None) -> dict:
+        """List all matches in a tournament."""
+        params = {}
+        if round:
+            params["round"] = round
+        if category:
+            params["category"] = category
+        return self._get(f"/api/tournaments/{tournament_id}/matches", params)
+
+    # --- Pairs ---
+
+    def get_pair(self, p1_id: int, p2_id: int) -> dict:
+        """Show profile for a specific pair."""
+        return self._get_cached(f"pairs/{p1_id}-{p2_id}.json", f"/api/pairs/{p1_id}-{p2_id}")
+
+    def get_pair_matches(self, p1_id: int, p2_id: int, after_date: str = None,
+                         before_date: str = None, round: int = None) -> dict:
+        """List matches for a specific pair."""
+        params = {}
+        if after_date:
+            params["after_date"] = after_date
+        if before_date:
+            params["before_date"] = before_date
+        if round:
+            params["round"] = round
+        return self._get(f"/api/pairs/{p1_id}-{p2_id}/matches", params)
