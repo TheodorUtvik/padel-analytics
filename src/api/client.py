@@ -167,7 +167,7 @@ class PadelAPIClient:
         body = {"team_1": team_1}
         if team_2:
             body["team_2"] = team_2
-        return self._post("/api/matches/head-to-head", body)
+        return self._post("/api/matches/headtohead", body)
 
     # --- Tournaments ---
 
