@@ -52,7 +52,7 @@ def _updated_elo(rating: float, expected: float, actual: float) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Rolling helpers
+# Rolling / history helpers
 # ---------------------------------------------------------------------------
 
 def _rolling_win_rate(history: list[tuple], window: int) -> float:
@@ -61,6 +61,44 @@ def _rolling_win_rate(history: list[tuple], window: int) -> float:
     if not recent:
         return 0.5
     return sum(1 for _, won in recent if won) / len(recent)
+
+
+def _form_streak(history: list[tuple]) -> int:
+    """Current consecutive win/loss streak.
+
+    Positive = win streak, negative = loss streak.
+    e.g. W,W,W → +3  |  L,L → -2  |  empty → 0
+    """
+    if not history:
+        return 0
+    streak = 0
+    current = history[-1][1]   # True = win, False = loss
+    for _, won in reversed(history):
+        if won == current:
+            streak += 1 if won else -1
+        else:
+            break
+    return streak
+
+
+def _days_since_last_match(history: list[tuple], current_date: pd.Timestamp) -> float:
+    """Days between the player's last match and the current match date.
+
+    Returns NaN if the player has no prior matches.
+    """
+    if not history:
+        return np.nan
+    last_date = pd.Timestamp(history[-1][0])
+    delta = (current_date - last_date).days
+    return float(max(delta, 0))
+
+
+def _level_win_rate(level_history: dict[str, list[bool]], level: str, window: int) -> float:
+    """Win rate at a specific tournament level over the last `window` matches at that level."""
+    hist = level_history.get(level, [])[-window:]
+    if not hist:
+        return 0.5
+    return sum(hist) / len(hist)
 
 
 def _avg_ranking(player_ids: list[int], ranking_lookup: dict[int, float]) -> float:
@@ -97,6 +135,19 @@ def compute_features(
     Returns
     -------
     DataFrame with one row per match and all engineered features + target.
+
+    Feature groups
+    --------------
+    ELO             — elo_t1, elo_t2, elo_diff
+    Win rate        — win_rate_t1/t2/diff  (last `window` matches)
+    Form streak     — form_streak_t1/t2/diff  (consecutive W/L run)
+    Pair chemistry  — pair_win_rate_t1/t2/diff, pair_matches_t1/t2
+    Level win rate  — level_win_rate_t1/t2/diff  (at this tournament tier)
+    Rest            — days_rest_t1/t2/diff  (days since last match)
+    Experience      — matches_played_t1/t2/diff
+    H2H             — h2h_wins_t1/t2, h2h_total, h2h_win_rate_t1
+    Ranking         — ranking_t1/t2/diff
+    Context         — tournament_level_weight, round, category
     """
     # Sort chronologically — required for leak-free computation
     df = (
@@ -117,9 +168,9 @@ def compute_features(
 
     # --- Mutable state (updated AFTER each match) ---
     elo: dict[int, float] = defaultdict(lambda: ELO_DEFAULT)
-    player_history: dict[int, list[tuple]] = defaultdict(list)   # [(played_at, won)]
+    player_history: dict[int, list[tuple]] = defaultdict(list)    # [(played_at, won)]
     pair_history: dict[frozenset, list[tuple]] = defaultdict(list)
-    # H2H keyed by frozenset of two pair-keys (each pair-key is a frozenset of player ids)
+    level_history: dict[int, dict[str, list[bool]]] = defaultdict(lambda: defaultdict(list))
     h2h: dict[tuple, dict[str, int]] = defaultdict(lambda: {"t1": 0, "t2": 0})
 
     rows = []
@@ -131,23 +182,46 @@ def compute_features(
         if not t1 or not t2:
             continue
 
+        current_date = pd.Timestamp(match["played_at"])
+
         # ── Pre-match features ──────────────────────────────────────────────
 
-        # ELO (average over pair members)
+        # ELO
         elo_t1 = float(np.mean([elo[p] for p in t1]))
         elo_t2 = float(np.mean([elo[p] for p in t2]))
 
-        # Rolling win rate per player → averaged over pair
+        # Rolling win rate
         wr_t1 = float(np.mean([_rolling_win_rate(player_history[p], window) for p in t1]))
         wr_t2 = float(np.mean([_rolling_win_rate(player_history[p], window) for p in t2]))
 
-        # Pair win rate (how well this specific pair plays together)
+        # Form streak (avg over pair members)
+        streak_t1 = float(np.mean([_form_streak(player_history[p]) for p in t1]))
+        streak_t2 = float(np.mean([_form_streak(player_history[p]) for p in t2]))
+
+        # Days since last match (avg over pair members)
+        rest_t1_vals = [_days_since_last_match(player_history[p], current_date) for p in t1]
+        rest_t2_vals = [_days_since_last_match(player_history[p], current_date) for p in t2]
+        rest_t1 = float(np.nanmean(rest_t1_vals)) if any(not np.isnan(v) for v in rest_t1_vals) else np.nan
+        rest_t2 = float(np.nanmean(rest_t2_vals)) if any(not np.isnan(v) for v in rest_t2_vals) else np.nan
+
+        # Tournament level
+        tid = match.get("tournament_id")
+        level = level_lookup.get(int(tid), "unknown") if pd.notna(tid) else "unknown"
+        level_weight = TOURNAMENT_LEVEL_WEIGHTS.get(level, 1)
+
+        # Win rate at this specific tournament level
+        lvl_wr_t1 = float(np.mean([_level_win_rate(level_history[p], level, window) for p in t1]))
+        lvl_wr_t2 = float(np.mean([_level_win_rate(level_history[p], level, window) for p in t2]))
+
+        # Pair win rate
         pkey_t1 = frozenset(t1)
         pkey_t2 = frozenset(t2)
         pair_wr_t1 = _rolling_win_rate(pair_history[pkey_t1], window) if len(t1) == 2 else wr_t1
         pair_wr_t2 = _rolling_win_rate(pair_history[pkey_t2], window) if len(t2) == 2 else wr_t2
+        pair_matches_t1 = len(pair_history[pkey_t1])
+        pair_matches_t2 = len(pair_history[pkey_t2])
 
-        # Matches played (experience proxy)
+        # Experience
         exp_t1 = float(np.mean([len(player_history[p]) for p in t1]))
         exp_t2 = float(np.mean([len(player_history[p]) for p in t2]))
 
@@ -165,65 +239,75 @@ def compute_features(
         rank_t2 = _avg_ranking(t2, ranking_lookup)
         rank_diff = (rank_t1 - rank_t2) if not (np.isnan(rank_t1) or np.isnan(rank_t2)) else np.nan
 
-        # Tournament context
-        tid = match.get("tournament_id")
-        level = level_lookup.get(int(tid), "unknown") if pd.notna(tid) else "unknown"
-        level_weight = TOURNAMENT_LEVEL_WEIGHTS.get(level, 1)
-
         # Target
         t1_won = match["winner"] == "team_1"
 
         rows.append({
             # Identifiers
-            "match_id":               match["match_id"],
-            "played_at":              match["played_at"],
-            "category":               match["category"],
-            "round":                  match["round"],
-            "tournament_id":          tid,
-            "tournament_level":       level,
-            "tournament_level_weight": level_weight,
+            "match_id":                 match["match_id"],
+            "played_at":                match["played_at"],
+            "category":                 match["category"],
+            "round":                    match["round"],
+            "tournament_id":            tid,
+            "tournament_level":         level,
+            "tournament_level_weight":  level_weight,
             # ELO
-            "elo_t1":                 round(elo_t1, 2),
-            "elo_t2":                 round(elo_t2, 2),
-            "elo_diff":               round(elo_t1 - elo_t2, 2),
+            "elo_t1":                   round(elo_t1, 2),
+            "elo_t2":                   round(elo_t2, 2),
+            "elo_diff":                 round(elo_t1 - elo_t2, 2),
             # Rolling win rate
-            "win_rate_t1":            round(wr_t1, 4),
-            "win_rate_t2":            round(wr_t2, 4),
-            "win_rate_diff":          round(wr_t1 - wr_t2, 4),
+            "win_rate_t1":              round(wr_t1, 4),
+            "win_rate_t2":              round(wr_t2, 4),
+            "win_rate_diff":            round(wr_t1 - wr_t2, 4),
+            # Form streak
+            "form_streak_t1":           round(streak_t1, 2),
+            "form_streak_t2":           round(streak_t2, 2),
+            "form_streak_diff":         round(streak_t1 - streak_t2, 2),
+            # Days rest
+            "days_rest_t1":             round(rest_t1, 1) if not np.isnan(rest_t1) else np.nan,
+            "days_rest_t2":             round(rest_t2, 1) if not np.isnan(rest_t2) else np.nan,
+            "days_rest_diff":           round(rest_t1 - rest_t2, 1) if not (np.isnan(rest_t1) or np.isnan(rest_t2)) else np.nan,
+            # Level win rate
+            "level_win_rate_t1":        round(lvl_wr_t1, 4),
+            "level_win_rate_t2":        round(lvl_wr_t2, 4),
+            "level_win_rate_diff":      round(lvl_wr_t1 - lvl_wr_t2, 4),
             # Pair chemistry
-            "pair_win_rate_t1":       round(pair_wr_t1, 4),
-            "pair_win_rate_t2":       round(pair_wr_t2, 4),
-            "pair_win_rate_diff":     round(pair_wr_t1 - pair_wr_t2, 4),
+            "pair_win_rate_t1":         round(pair_wr_t1, 4),
+            "pair_win_rate_t2":         round(pair_wr_t2, 4),
+            "pair_win_rate_diff":       round(pair_wr_t1 - pair_wr_t2, 4),
+            "pair_matches_t1":          pair_matches_t1,
+            "pair_matches_t2":          pair_matches_t2,
             # Experience
-            "matches_played_t1":      exp_t1,
-            "matches_played_t2":      exp_t2,
-            "matches_played_diff":    exp_t1 - exp_t2,
+            "matches_played_t1":        exp_t1,
+            "matches_played_t2":        exp_t2,
+            "matches_played_diff":      exp_t1 - exp_t2,
             # H2H
-            "h2h_wins_t1":            h2h_wins_t1,
-            "h2h_wins_t2":            h2h_wins_t2,
-            "h2h_total":              h2h_total,
-            "h2h_win_rate_t1":        round(h2h_wr_t1, 4),
-            # Ranking (current — not historical, treat as approximate)
-            "ranking_t1":             rank_t1,
-            "ranking_t2":             rank_t2,
-            "ranking_diff":           rank_diff,
+            "h2h_wins_t1":              h2h_wins_t1,
+            "h2h_wins_t2":              h2h_wins_t2,
+            "h2h_total":                h2h_total,
+            "h2h_win_rate_t1":          round(h2h_wr_t1, 4),
+            # Ranking
+            "ranking_t1":               rank_t1,
+            "ranking_t2":               rank_t2,
+            "ranking_diff":             rank_diff,
             # Target
-            "target":                 int(t1_won),
+            "target":                   int(t1_won),
         })
 
         # ── Update state AFTER recording features ───────────────────────────
 
         exp_elo_t1 = _expected(elo_t1, elo_t2)
-
         new_elo_t1 = _updated_elo(elo_t1, exp_elo_t1, 1.0 if t1_won else 0.0)
         new_elo_t2 = _updated_elo(elo_t2, 1.0 - exp_elo_t1, 0.0 if t1_won else 1.0)
 
         for p in t1:
             elo[p] = new_elo_t1
             player_history[p].append((match["played_at"], t1_won))
+            level_history[p][level].append(t1_won)
         for p in t2:
             elo[p] = new_elo_t2
             player_history[p].append((match["played_at"], not t1_won))
+            level_history[p][level].append(not t1_won)
 
         if len(t1) == 2:
             pair_history[pkey_t1].append((match["played_at"], t1_won))
@@ -232,14 +316,8 @@ def compute_features(
 
         # Update H2H
         if t1_won:
-            if h2h_slot == "t1":
-                h2h[h2h_key]["t1"] += 1
-            else:
-                h2h[h2h_key]["t2"] += 1
+            h2h[h2h_key]["t1" if h2h_slot == "t1" else "t2"] += 1
         else:
-            if h2h_slot == "t1":
-                h2h[h2h_key]["t2"] += 1
-            else:
-                h2h[h2h_key]["t1"] += 1
+            h2h[h2h_key]["t2" if h2h_slot == "t1" else "t1"] += 1
 
     return pd.DataFrame(rows)
