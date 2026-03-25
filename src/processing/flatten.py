@@ -24,6 +24,8 @@ def parse_score(score_list: list | None) -> dict:
     sets_t1 = 0
     sets_t2 = 0
     for s in score_list:
+        if not isinstance(s, dict):
+            continue
         t1 = _parse_set_value(s.get("team_1", 0))
         t2 = _parse_set_value(s.get("team_2", 0))
         if t1 > t2:

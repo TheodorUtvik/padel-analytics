@@ -19,7 +19,7 @@ RAW_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
 
 class PadelAPIClient:
     def __init__(self, base_url: str | None = None, timeout_seconds: float | None = None,
-                 requests_per_minute: int = 10):
+                 requests_per_minute: int = 4):
         api_key = os.getenv("API_KEY")
         if not api_key:
             raise ValueError("API_KEY not found in .env")
@@ -47,7 +47,7 @@ class PadelAPIClient:
             time.sleep(self._min_interval - elapsed)
         self._last_request_at = time.monotonic()
 
-    def _get(self, endpoint: str, params: dict = None) -> dict:
+    def _get(self, endpoint: str, params: dict = None, _retry: int = 3) -> dict:
         self._rate_limit()
         url = f"{self.base_url}{endpoint}"
         try:
@@ -56,13 +56,16 @@ class PadelAPIClient:
             return response.json()
         except requests.exceptions.HTTPError as e:
             status = getattr(e.response, "status_code", None)
+            if status == 429 and _retry > 0:
+                retry_after = int(e.response.headers.get("Retry-After", 15))
+                print(f"  429 rate limited — waiting {retry_after}s before retry ({_retry} left)...")
+                time.sleep(retry_after)
+                return self._get(endpoint, params, _retry=_retry - 1)
             if status == 403:
-                hint = (
-                    "403 Forbidden from the API. This often happens when a gateway/WAF blocks the default "
-                    "python HTTP client headers. Try setting `PADELAPI_USER_AGENT=curl/8.0.0` (or a browser UA) "
-                    "and rerun."
-                )
-                raise PermissionError(f"{hint} URL={url}") from e
+                raise PermissionError(
+                    "403 Forbidden. Try setting PADELAPI_USER_AGENT=curl/8.0.0 in .env."
+                    f" URL={url}"
+                ) from e
             raise
         except requests.exceptions.ConnectionError as e:
             raise ConnectionError(
@@ -113,7 +116,10 @@ class PadelAPIClient:
             p = dict(params or {})
             p["page"] = page
             response = self._get(endpoint, p)
-            all_data.extend(response.get("data", []))
+            batch = response.get("data", [])
+            all_data.extend(batch)
+            total = response.get("meta", {}).get("total", "?")
+            print(f"  page {page}: +{len(batch)} items (total so far: {len(all_data)}/{total})")
             next_url = response.get("links", {}).get("next")
             if not next_url:
                 break
@@ -243,9 +249,14 @@ class PadelAPIClient:
             params["before_date"] = before_date
         return self._get("/api/tournaments", params)
 
-    def get_tournament(self, tournament_id: int) -> dict:
-        """Show a single tournament."""
-        return self._get_cached(f"tournaments/{tournament_id}.json", f"/api/tournaments/{tournament_id}")
+    def get_tournament(self, tournament_id: int) -> dict | None:
+        """Show a single tournament. Returns None if not found (404)."""
+        try:
+            return self._get_cached(f"tournaments/{tournament_id}.json", f"/api/tournaments/{tournament_id}")
+        except requests.exceptions.HTTPError as e:
+            if getattr(e.response, "status_code", None) == 404:
+                return None
+            raise
 
     def get_tournament_matches(self, tournament_id: int, round: int = None, category: str = None) -> dict:
         """List all matches in a tournament."""
