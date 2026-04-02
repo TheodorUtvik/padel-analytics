@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 import pandas as pd
 import streamlit as st
 
-from app.components.sidebar import render_sidebar
+from components.sidebar import render_sidebar
 
 PROCESSED = Path(__file__).parents[1] / "data" / "processed"
 
