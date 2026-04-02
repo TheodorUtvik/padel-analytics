@@ -27,7 +27,9 @@ def render_sidebar():
                 Data collected from padelapi.org<br>
                 891 labeled matches (free tier)<br>
                 XGBoost · 77.1% accuracy<br>
-                ELO · Rolling form · Pair chemistry
+                ELO · Rolling form · Pair chemistry<br><br>
+                <b style='color: #999'>Author</b><br>
+                Theodor Sjetnan Utvik
             </div>
             """,
             unsafe_allow_html=True,

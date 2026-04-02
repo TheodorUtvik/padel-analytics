@@ -1,5 +1,7 @@
 # Padel Analytics
 
+**Author:** Theodor Sjetnan Utvik
+
 A spare-time data science project I built before starting a Data Science for Business master's at BI Norwegian Business School.
 
 The idea: collect real professional padel match data from an API, engineer predictive features, train ML models to predict match outcomes, and serve the results through an interactive dashboard.
