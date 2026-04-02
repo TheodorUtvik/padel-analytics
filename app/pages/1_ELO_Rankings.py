@@ -8,9 +8,9 @@ import streamlit as st
 from src.models.predict import get_elo_rankings
 from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="ELO Rankings", page_icon="🏆", layout="wide")
+st.set_page_config(page_title="ELO Rankings", page_icon=":material/leaderboard:", layout="wide")
 render_sidebar()
-st.title("🏆 ELO Rankings")
+st.title("ELO Rankings")
 st.markdown("Current ELO ratings computed from all labeled matches, updated after every result.")
 
 category = st.radio("Category", ["men", "women"], horizontal=True)

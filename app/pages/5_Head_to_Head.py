@@ -7,9 +7,9 @@ import streamlit as st
 from src.models.analysis import get_real_pairs, get_pairs_faced, get_h2h_record
 from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Head to Head", page_icon="⚔️", layout="wide")
+st.set_page_config(page_title="Head to Head", page_icon=":material/compare_arrows:", layout="wide")
 render_sidebar()
-st.title("⚔️ Head to Head")
+st.title("Head to Head")
 st.markdown("Compare two pairs that have actually faced each other.")
 
 category = st.radio("Category", ["men", "women"], horizontal=True)

@@ -8,9 +8,9 @@ import streamlit as st
 from src.models.analysis import get_pair_chemistry
 from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Pair Chemistry", page_icon="🤝", layout="wide")
+st.set_page_config(page_title="Pair Chemistry", page_icon=":material/group:", layout="wide")
 render_sidebar()
-st.title("🤝 Pair Chemistry")
+st.title("Pair Chemistry")
 st.markdown(
     "Which pairs perform **better together** than their individual records suggest? "
     "Chemistry = pair win rate − average individual win rate. "

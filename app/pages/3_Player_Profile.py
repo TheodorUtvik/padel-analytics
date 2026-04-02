@@ -10,9 +10,9 @@ import streamlit as st
 from src.models.predict import get_player_profile, PROCESSED
 from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Player Profile", page_icon="👤", layout="wide")
+st.set_page_config(page_title="Player Profile", page_icon=":material/person:", layout="wide")
 render_sidebar()
-st.title("👤 Player Profile")
+st.title("Player Profile")
 
 # --- Player selector ---
 @st.cache_data

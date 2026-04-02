@@ -8,13 +8,13 @@ def render_sidebar():
             """
             <div style='font-size: 0.78rem; color: #888; line-height: 1.7'>
                 <b style='color: #ccc'>Pages</b><br>
-                🏆 &nbsp;ELO Rankings<br>
-                🎯 &nbsp;Match Predictor<br>
-                👤 &nbsp;Player Profile<br>
-                📅 &nbsp;Tournament History<br>
-                ⚔️ &nbsp;Head to Head<br>
-                📈 &nbsp;ELO Race<br>
-                🤝 &nbsp;Pair Chemistry
+                — &nbsp;ELO Rankings<br>
+                — &nbsp;Match Predictor<br>
+                — &nbsp;Player Profile<br>
+                — &nbsp;Tournament History<br>
+                — &nbsp;Head to Head<br>
+                — &nbsp;ELO Race<br>
+                — &nbsp;Pair Chemistry
             </div>
             """,
             unsafe_allow_html=True,

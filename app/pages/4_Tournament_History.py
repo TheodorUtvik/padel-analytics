@@ -8,9 +8,9 @@ import streamlit as st
 from src.models.analysis import get_tournament_history, PROCESSED
 from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Tournament History", page_icon="📅", layout="wide")
+st.set_page_config(page_title="Tournament History", page_icon=":material/calendar_month:", layout="wide")
 render_sidebar()
-st.title("📅 Tournament History")
+st.title("Tournament History")
 
 with st.spinner("Loading tournaments..."):
     df = get_tournament_history()

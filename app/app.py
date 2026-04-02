@@ -15,14 +15,14 @@ PROCESSED = Path(__file__).parents[1] / "data" / "processed"
 
 st.set_page_config(
     page_title="Padel Analytics",
-    page_icon="🎾",
+    page_icon=":material/sports_tennis:",
     layout="wide",
 )
 
 render_sidebar()
 
 # --- Header ---
-st.title("🎾 Padel Analytics")
+st.title("Padel Analytics")
 st.markdown(
     "An end-to-end data science project — collecting professional padel match data, "
     "engineering predictive features, and serving ML-powered predictions through this dashboard."
@@ -65,13 +65,13 @@ with col_left:
         """
         | Page | What you'll find |
         |---|---|
-        | 🏆 ELO Rankings | Current standings computed from match history |
-        | 🎯 Match Predictor | Pick 4 players, get a win probability |
-        | 👤 Player Profile | ELO history, form chart, recent matches |
-        | 📅 Tournament History | Browse tournaments and their results |
-        | ⚔️ Head to Head | H2H record between two real pairs |
-        | 📈 ELO Race | See how top players' ratings evolved over time |
-        | 🤝 Pair Chemistry | Which pairs outperform their individual records |
+        | ELO Rankings | Current standings computed from match history |
+        | Match Predictor | Pick 4 players, get a win probability |
+        | Player Profile | ELO history, form chart, recent matches |
+        | Tournament History | Browse tournaments and their results |
+        | Head to Head | H2H record between two real pairs |
+        | ELO Race | See how top players' ratings evolved over time |
+        | Pair Chemistry | Which pairs outperform their individual records |
         """
     )
 

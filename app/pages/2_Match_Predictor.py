@@ -8,9 +8,9 @@ import streamlit as st
 from src.models.predict import get_elo_rankings, load_model, predict_match, PROCESSED
 from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Match Predictor", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="Match Predictor", page_icon=":material/model_training:", layout="wide")
 render_sidebar()
-st.title("🎯 Match Predictor")
+st.title("Match Predictor")
 st.markdown("Select two pairs of players and get a predicted win probability from the trained XGBoost model.")
 
 # --- Sidebar config ---
