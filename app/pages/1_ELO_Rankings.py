@@ -6,9 +6,11 @@ import plotly.express as px
 import streamlit as st
 
 from src.models.predict import get_elo_rankings
+from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="ELO Rankings", page_icon="🎾", layout="wide")
-st.title("ELO Rankings")
+st.set_page_config(page_title="ELO Rankings", page_icon="🏆", layout="wide")
+render_sidebar()
+st.title("🏆 ELO Rankings")
 st.markdown("Current ELO ratings computed from all labeled matches, updated after every result.")
 
 category = st.radio("Category", ["men", "women"], horizontal=True)
@@ -25,7 +27,17 @@ col1, col2 = st.columns([1, 1])
 
 with col1:
     st.subheader("Leaderboard")
-    st.dataframe(df_display.head(30), use_container_width=True)
+    st.dataframe(
+        df_display.head(30),
+        use_container_width=True,
+        column_config={
+            "Player":          st.column_config.TextColumn(width="large"),
+            "Nationality":     st.column_config.TextColumn(width="small"),
+            "ELO":             st.column_config.NumberColumn(format="%.1f"),
+            "Official Ranking":st.column_config.NumberColumn(width="small"),
+            "Matches Played":  st.column_config.NumberColumn(width="small"),
+        },
+    )
 
 with col2:
     st.subheader("ELO vs Official Ranking (Top 50)")

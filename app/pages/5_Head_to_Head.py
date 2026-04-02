@@ -5,9 +5,11 @@ sys.path.insert(0, str(Path(__file__).parents[2]))
 import streamlit as st
 
 from src.models.analysis import get_real_pairs, get_pairs_faced, get_h2h_record
+from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Head to Head", page_icon="🎾", layout="wide")
-st.title("Head to Head")
+st.set_page_config(page_title="Head to Head", page_icon="⚔️", layout="wide")
+render_sidebar()
+st.title("⚔️ Head to Head")
 st.markdown("Compare two pairs that have actually faced each other.")
 
 category = st.radio("Category", ["men", "women"], horizontal=True)
@@ -75,4 +77,15 @@ matches = h2h["matches"]
 if len(matches):
     matches["date"] = matches["date"].dt.date
     matches.columns = ["Date", "Winner", "Round", "Tournament", "Level"]
-    st.dataframe(matches, use_container_width=True, hide_index=True)
+    st.dataframe(
+        matches,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Date":       st.column_config.DateColumn(width="small"),
+            "Winner":     st.column_config.TextColumn(width="large"),
+            "Round":      st.column_config.TextColumn(width="small"),
+            "Tournament": st.column_config.TextColumn(width="large"),
+            "Level":      st.column_config.TextColumn(width="small"),
+        },
+    )

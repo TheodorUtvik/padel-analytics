@@ -6,9 +6,11 @@ import pandas as pd
 import streamlit as st
 
 from src.models.predict import get_elo_rankings, load_model, predict_match, PROCESSED
+from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Match Predictor", page_icon="🎾", layout="wide")
-st.title("Match Predictor")
+st.set_page_config(page_title="Match Predictor", page_icon="🎯", layout="wide")
+render_sidebar()
+st.title("🎯 Match Predictor")
 st.markdown("Select two pairs of players and get a predicted win probability from the trained XGBoost model.")
 
 # --- Sidebar config ---
@@ -100,7 +102,15 @@ if st.button("Predict", type="primary", use_container_width=True):
                 feat["pair_matches_t1"], feat["pair_matches_t2"], feat["h2h_total"],
             ],
         })
-        st.dataframe(feat_df, use_container_width=True, hide_index=True)
+        st.dataframe(
+            feat_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Feature": st.column_config.TextColumn(width="medium"),
+                "Value":   st.column_config.TextColumn(width="small"),
+            },
+        )
 
         st.caption(
             "Model: XGBoost trained on 891 labeled matches (free API tier). "

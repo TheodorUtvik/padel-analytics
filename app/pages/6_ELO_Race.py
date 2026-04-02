@@ -6,9 +6,11 @@ import plotly.express as px
 import streamlit as st
 
 from src.models.analysis import get_elo_timeline
+from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="ELO Race", page_icon="🎾", layout="wide")
-st.title("ELO Race")
+st.set_page_config(page_title="ELO Race", page_icon="📈", layout="wide")
+render_sidebar()
+st.title("📈 ELO Race")
 st.markdown("How the top players' ELO ratings evolved over time.")
 
 category = st.radio("Category", ["men", "women"], horizontal=True)

@@ -6,9 +6,11 @@ import plotly.express as px
 import streamlit as st
 
 from src.models.analysis import get_pair_chemistry
+from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Pair Chemistry", page_icon="🎾", layout="wide")
-st.title("Pair Chemistry")
+st.set_page_config(page_title="Pair Chemistry", page_icon="🤝", layout="wide")
+render_sidebar()
+st.title("🤝 Pair Chemistry")
 st.markdown(
     "Which pairs perform **better together** than their individual records suggest? "
     "Chemistry = pair win rate − average individual win rate. "
@@ -72,4 +74,15 @@ display.columns = ["Pair", "Matches Together", "Pair Win Rate", "Avg Individual 
 display["Pair Win Rate"]            = display["Pair Win Rate"].map("{:.1%}".format)
 display["Avg Individual Win Rate"]  = display["Avg Individual Win Rate"].map("{:.1%}".format)
 display["Chemistry"]                = display["Chemistry"].map("{:+.1%}".format)
-st.dataframe(display, use_container_width=True, hide_index=True)
+st.dataframe(
+    display,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Pair":                      st.column_config.TextColumn(width="large"),
+        "Matches Together":          st.column_config.NumberColumn(width="small"),
+        "Pair Win Rate":             st.column_config.TextColumn(width="small"),
+        "Avg Individual Win Rate":   st.column_config.TextColumn(width="small"),
+        "Chemistry":                 st.column_config.TextColumn(width="small"),
+    },
+)

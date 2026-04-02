@@ -8,9 +8,11 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.models.predict import get_player_profile, PROCESSED
+from app.components.sidebar import render_sidebar
 
-st.set_page_config(page_title="Player Profile", page_icon="🎾", layout="wide")
-st.title("Player Profile")
+st.set_page_config(page_title="Player Profile", page_icon="👤", layout="wide")
+render_sidebar()
+st.title("👤 Player Profile")
 
 # --- Player selector ---
 @st.cache_data
@@ -126,6 +128,14 @@ if len(matches) > 0:
         ),
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Date":      st.column_config.DateColumn(width="small"),
+            "Result":    st.column_config.TextColumn(width="small"),
+            "Partner":   st.column_config.TextColumn(width="large"),
+            "Opponents": st.column_config.TextColumn(width="large"),
+            "Level":     st.column_config.TextColumn(width="small"),
+            "Round":     st.column_config.TextColumn(width="small"),
+        },
     )
 else:
     st.info("No labeled matches found for this player.")
