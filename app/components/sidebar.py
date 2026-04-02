@@ -29,7 +29,9 @@ def render_sidebar():
                 XGBoost · 77.1% accuracy<br>
                 ELO · Rolling form · Pair chemistry<br><br>
                 <b style='color: #999'>Author</b><br>
-                Theodor Sjetnan Utvik
+                Theodor Sjetnan Utvik<br>
+                <a href='https://www.linkedin.com/in/theodorutvik/' target='_blank'
+                   style='color: #4a9eda; text-decoration: none'>LinkedIn</a>
             </div>
             """,
             unsafe_allow_html=True,

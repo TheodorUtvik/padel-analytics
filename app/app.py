@@ -27,7 +27,7 @@ st.markdown(
     "An end-to-end data science project — collecting professional padel match data, "
     "engineering predictive features, and serving ML-powered predictions through this dashboard."
 )
-st.caption("Built by Theodor Sjetnan Utvik")
+st.caption("Built by [Theodor Sjetnan Utvik](https://www.linkedin.com/in/theodorutvik/)")
 st.divider()
 
 # --- Key metrics ---
