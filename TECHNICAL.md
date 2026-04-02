@@ -64,8 +64,46 @@ padel-analytics/
 | `GET /api/tournaments/{id}/matches` | Matches in a tournament |
 | `POST /api/matches/headtohead` | Head-to-head between players/pairs |
 
+## Hyperparameter tuning
+
+XGBoost hyperparameters were tuned using [Optuna](https://optuna.org) (notebook `05_hyperparameter_tuning.ipynb`).
+
+**Approach**
+- Same chronological 80/20 train/test split as the modelling notebook
+- `TimeSeriesSplit(n_splits=3)` cross-validation within the training set to avoid leakage
+- 100 trials using Optuna's TPE (Tree-structured Parzen Estimator) sampler — a Bayesian optimisation method that focuses new trials on regions of the search space that performed well previously
+- Objective: minimise mean CV log-loss across the 3 folds
+
+**Search space**
+
+| Parameter | Range |
+|---|---|
+| `n_estimators` | 100 – 600 |
+| `max_depth` | 2 – 8 |
+| `learning_rate` | 0.01 – 0.3 (log scale) |
+| `subsample` | 0.5 – 1.0 |
+| `colsample_bytree` | 0.5 – 1.0 |
+| `min_child_weight` | 1 – 10 |
+| `reg_alpha` | 0 – 5 |
+| `reg_lambda` | 0 – 5 |
+
+**Results**
+
+| | Accuracy | ROC-AUC |
+|---|---|---|
+| Baseline XGBoost | 75.4% | 0.838 |
+| Tuned XGBoost | 77.1% | 0.846 |
+| Delta | +1.7pp | +0.008 |
+
+**Key findings**
+- `learning_rate` was by far the most impactful parameter — the default of 0.05 was suboptimal
+- All other parameters had much weaker influence on log-loss
+- The optimisation history flattened after ~60 trials, confirming 100 trials was sufficient
+- The +1.7pp gain is real but modest — with only 891 labeled matches the confidence interval is ~±3%, so the improvement is directionally positive but not conclusive. More data would have a larger impact than further tuning.
+
+Best params are saved to `src/models/best_params.json` and loaded automatically by `predict.py`.
+
 ## Planned
 
-- Player profile page — form over time, ELO history curve, recent matches
-- Hyperparameter tuning with Optuna
 - Deploy to Streamlit Community Cloud
+- Map tournament level codes to readable names across the dashboard
