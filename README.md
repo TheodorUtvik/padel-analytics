@@ -32,17 +32,13 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Add a `.env` file with your API key:
-
-```
-API_KEY=your_api_key_here
-```
-
-Run the notebooks in order (01 → 02 → 03 → 04), then launch the dashboard:
+Launch the dashboard:
 
 ```bash
 streamlit run app/app.py
 ```
+
+> An API key from [padelapi.org](https://padelapi.org) is required to collect data (notebooks 01–02). Once the parquet files are generated, the dashboard and models run fully offline. Add the key to a `.env` file as `API_KEY=your_key_here`.
 
 ## Project structure
 
