@@ -8,6 +8,7 @@ Trains an XGBoost model on the full features dataset and exposes:
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
 
@@ -141,6 +142,112 @@ def _build_player_state() -> dict:
         "level_history": dict(level_history),
         "h2h": dict(h2h),
         "ranking_lookup": ranking_lookup,
+    }
+
+
+def get_player_profile(player_id: int) -> dict:
+    """Build a full profile for a player.
+
+    Returns
+    -------
+    dict with keys:
+        info          — player metadata row (Series)
+        elo_history   — DataFrame(played_at, elo) after each match
+        matches       — DataFrame of labeled matches with result, opponent names, tournament level
+        win_rate      — overall win rate across labeled matches
+        form_streak   — current consecutive W/L streak
+    """
+    df_matches = pd.read_parquet(PROCESSED / "matches.parquet")
+    df_players = pd.read_parquet(PROCESSED / "players.parquet")
+    df_tournaments = pd.read_parquet(PROCESSED / "tournaments.parquet")
+
+    pid = int(player_id)
+    info = df_players[df_players["player_id"] == pid].iloc[0]
+
+    name_lookup: dict[int, str] = dict(
+        zip(df_players["player_id"].astype(int), df_players["name"])
+    )
+    level_lookup: dict[int, str] = dict(
+        zip(df_tournaments["tournament_id"].astype(int), df_tournaments["level"].fillna("unknown"))
+    )
+
+    df = (
+        df_matches
+        .dropna(subset=["winner"])
+        .query("winner in ('team_1', 'team_2')")
+        .sort_values("played_at")
+        .reset_index(drop=True)
+    )
+
+    elo: dict[int, float] = defaultdict(lambda: ELO_DEFAULT)
+    elo_history_rows = []
+    match_rows = []
+
+    for _, match in df.iterrows():
+        t1 = [int(p) for p in [match["t1_p1"], match["t1_p2"]] if pd.notna(p)]
+        t2 = [int(p) for p in [match["t2_p1"], match["t2_p2"]] if pd.notna(p)]
+        if not t1 or not t2:
+            continue
+
+        t1_won = match["winner"] == "team_1"
+        elo_t1 = float(np.mean([elo[p] for p in t1]))
+        elo_t2 = float(np.mean([elo[p] for p in t2]))
+        exp_t1 = _expected(elo_t1, elo_t2)
+        new_elo_t1 = _updated_elo(elo_t1, exp_t1, 1.0 if t1_won else 0.0)
+        new_elo_t2 = _updated_elo(elo_t2, 1.0 - exp_t1, 0.0 if t1_won else 1.0)
+
+        tid = match.get("tournament_id")
+        level = level_lookup.get(int(tid), "unknown") if pd.notna(tid) else "unknown"
+
+        if pid in t1:
+            won = t1_won
+            partners = [p for p in t1 if p != pid]
+            opponents = t2
+            new_elo = new_elo_t1
+        elif pid in t2:
+            won = not t1_won
+            partners = [p for p in t2 if p != pid]
+            opponents = t1
+            new_elo = new_elo_t2
+        else:
+            for p in t1:
+                elo[p] = new_elo_t1
+            for p in t2:
+                elo[p] = new_elo_t2
+            continue
+
+        for p in t1:
+            elo[p] = new_elo_t1
+        for p in t2:
+            elo[p] = new_elo_t2
+
+        elo_history_rows.append({"played_at": match["played_at"], "elo": round(new_elo, 1)})
+
+        partner_names = " / ".join(name_lookup.get(p, str(p)) for p in partners)
+        opponent_names = " / ".join(name_lookup.get(p, str(p)) for p in opponents)
+        match_rows.append({
+            "date": match["played_at"],
+            "result": "W" if won else "L",
+            "partner": partner_names,
+            "opponents": opponent_names,
+            "level": level,
+            "round": match.get("round_name", match.get("round")),
+        })
+
+    elo_history = pd.DataFrame(elo_history_rows)
+    matches_df = pd.DataFrame(match_rows)
+
+    state = _build_player_state()
+    ph = state["player_history"].get(pid, [])
+    win_rate = sum(1 for _, w in ph if w) / len(ph) if ph else None
+    streak = _form_streak(ph)
+
+    return {
+        "info": info,
+        "elo_history": elo_history,
+        "matches": matches_df,
+        "win_rate": win_rate,
+        "form_streak": streak,
     }
 
 
