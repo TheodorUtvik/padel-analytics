@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import streamlit as st
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
@@ -68,7 +68,7 @@ def _load_xgb_params() -> dict:
     return _DEFAULT_PARAMS
 
 
-@lru_cache(maxsize=1)
+@st.cache_resource
 def load_model() -> Pipeline:
     """Train XGBoost on the full feature dataset and return the fitted pipeline."""
     df = pd.read_parquet(PROCESSED / "features.parquet")
@@ -90,7 +90,7 @@ def load_model() -> Pipeline:
     return pipe
 
 
-@lru_cache(maxsize=1)
+@st.cache_resource
 def _build_player_state() -> dict:
     """Replay all matches to build current ELO + history state for every player."""
     from collections import defaultdict
@@ -168,6 +168,7 @@ def _build_player_state() -> dict:
     }
 
 
+@st.cache_data
 def get_player_profile(player_id: int) -> dict:
     """Build a full profile for a player.
 
@@ -274,6 +275,7 @@ def get_player_profile(player_id: int) -> dict:
     }
 
 
+@st.cache_data
 def get_elo_rankings(category: str | None = None) -> pd.DataFrame:
     """Return a DataFrame of players ranked by current ELO.
 

@@ -5,11 +5,11 @@ Covers: ELO timeline, real pairs, H2H records, pair chemistry, tournament histor
 from __future__ import annotations
 
 from collections import defaultdict
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import streamlit as st
 
 from src.processing.features import ELO_DEFAULT, _expected, _updated_elo
 
@@ -26,7 +26,7 @@ def _load_labeled_matches() -> pd.DataFrame:
     )
 
 
-@lru_cache(maxsize=1)
+@st.cache_data
 def get_elo_timeline() -> pd.DataFrame:
     """ELO rating after each match for every player.
 
@@ -68,7 +68,7 @@ def get_elo_timeline() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-@lru_cache(maxsize=1)
+@st.cache_data
 def get_real_pairs(min_matches: int = 3) -> pd.DataFrame:
     """All pairs that have played together at least min_matches times.
 
@@ -120,6 +120,7 @@ def get_real_pairs(min_matches: int = 3) -> pd.DataFrame:
     )
 
 
+@st.cache_data
 def get_pairs_faced(pair_ids: tuple[int, int]) -> list[tuple[int, int]]:
     """Return all pair keys that have faced the given pair in a labeled match."""
     df     = _load_labeled_matches()
@@ -139,6 +140,7 @@ def get_pairs_faced(pair_ids: tuple[int, int]) -> list[tuple[int, int]]:
     return list(faced)
 
 
+@st.cache_data
 def get_h2h_record(pair1_ids: tuple[int, int], pair2_ids: tuple[int, int]) -> dict:
     """Full head-to-head record between two specific pairs.
 
@@ -200,7 +202,7 @@ def get_h2h_record(pair1_ids: tuple[int, int], pair2_ids: tuple[int, int]) -> di
     }
 
 
-@lru_cache(maxsize=1)
+@st.cache_data
 def get_pair_chemistry(min_matches: int = 5) -> pd.DataFrame:
     """Chemistry score for each pair: pair win rate minus average individual win rate.
 
@@ -265,7 +267,7 @@ def get_pair_chemistry(min_matches: int = 5) -> pd.DataFrame:
     )
 
 
-@lru_cache(maxsize=1)
+@st.cache_data
 def get_tournament_history() -> pd.DataFrame:
     """All tournaments with match counts, categories, and final winner."""
     df_matches     = pd.read_parquet(PROCESSED / "matches.parquet")
