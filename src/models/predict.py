@@ -8,6 +8,7 @@ Trains an XGBoost model on the full features dataset and exposes:
 """
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
@@ -46,6 +47,27 @@ FEATURES = [
 ]
 
 
+_BEST_PARAMS_PATH = Path(__file__).parent / "best_params.json"
+
+_DEFAULT_PARAMS = {
+    "n_estimators": 300,
+    "max_depth": 4,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+}
+
+
+def _load_xgb_params() -> dict:
+    """Load tuned params from best_params.json if available, else use defaults."""
+    if _BEST_PARAMS_PATH.exists():
+        with open(_BEST_PARAMS_PATH) as f:
+            params = json.load(f)
+        print(f"Using tuned params from {_BEST_PARAMS_PATH.name}")
+        return params
+    return _DEFAULT_PARAMS
+
+
 @lru_cache(maxsize=1)
 def load_model() -> Pipeline:
     """Train XGBoost on the full feature dataset and return the fitted pipeline."""
@@ -58,9 +80,10 @@ def load_model() -> Pipeline:
     pipe = Pipeline([
         ("impute", SimpleImputer(strategy="median")),
         ("clf", XGBClassifier(
-            n_estimators=300, max_depth=4, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8,
-            eval_metric="logloss", random_state=42, verbosity=0,
+            **_load_xgb_params(),
+            eval_metric="logloss",
+            random_state=42,
+            verbosity=0,
         )),
     ])
     pipe.fit(X, y)
